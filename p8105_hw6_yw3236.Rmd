@@ -14,18 +14,32 @@ library(tidyverse)
 ```{r}
 homicides_data = read.csv("https://raw.githubusercontent.com/washingtonpost/data-homicides/master/homicide-data.csv")
 ```
-View(homicides_data)
 
 ```{r}
 new_homicides_data = homicides_data %>%
   mutate(city_state = paste(city, state, sep = ", ")) %>%
-  mutate(disposition_index = as.factor(ifelse(disposition == "Closed without arrest" | disposition == "Open/No arrest", 0, 1))) %>%
+  mutate(resolved = as.numeric(disposition == "Closed by arrest")) %>% #factor???
   filter(city_state != "Dallas, TX" & city_state != "Phoenix, AZ" & city_state != "Kansas City, MO") %>%
   filter(city_state != "Tulsa, AL") %>%
-  mutate(victim_race = ifelse(victim_race == "White", "white", "non-white")) %>%
-  mutate(victim_race = factor(victim_race, levels = c("white", "non-white"))) %>%
-  mutate(victim_age = as.numeric(victim_age))
-#1 or 0???
+  mutate(victim_race = ifelse(victim_race == "White", "white", "non-white"),
+         victim_race = fct_relevel(victim_race, "white"),
+         victim_age = as.numeric(victim_age))
 ```
 View(new_homicides_data)
+
+```{r}
+fit_logistic = new_homicides_data %>%
+  filter(city_state == "Baltimore, MD") %>%
+  glm(resolved ~ victim_age + victim_race + victim_sex, data = ., family = binomial()) 
+```
+
+```{r}
+fit_logistic %>% 
+  broom::tidy() %>% 
+  mutate(OR = exp(estimate),
+         CI_lower = exp(estimate - qnorm(0.975) * std.error),
+         CI_upper = exp(estimate + qnorm(0.975) * std.error)) %>%
+  select(term, OR, CI_lower, CI_upper, p.value) %>% 
+  knitr::kable(digits = 3)
+```
 
