@@ -40,6 +40,7 @@ fit_logistic %>%
          CI_lower = exp(estimate - qnorm(0.975) * std.error),
          CI_upper = exp(estimate + qnorm(0.975) * std.error)) %>%
   select(term, OR, CI_lower, CI_upper, p.value) %>% 
+  filter(term == "victim_racenon-white") %>%
   knitr::kable(digits = 3)
 ```
 
@@ -47,20 +48,30 @@ fit_logistic %>%
 glm_function = function(city_data){
   
   city_data %>%
-    nest(-city) %>%  #nest first
+    nest(-city_state) %>%  #nest first
     mutate(glm = purrr::map(data, ~glm(resolved ~ victim_age + victim_race + victim_sex, data = ., family = binomial())),
            tidied = purrr::map(glm, broom::tidy)) %>%  #apply test
     unnest(tidied, .drop = TRUE) %>%  #unnest
     mutate(OR = exp(estimate),
            CI_lower = exp(estimate - qnorm(0.975) * std.error),
            CI_upper = exp(estimate + qnorm(0.975) * std.error)) %>%
-    select(city, term, OR, CI_lower, CI_upper, p.value) %>% 
+    filter(term == "victim_racenon-white") %>%
+    select(city_state, OR, CI_lower, CI_upper, p.value) %>%
     data.frame()
   
 }
 ```
 
 ```{r}
-glm_function(new_homicides_data)
+multicity_glm = glm_function(new_homicides_data)
+```
+
+```{r}
+multicity_glm %>%
+  ggplot() +
+  geom_point(aes(x = reorder(city_state, OR), y = OR)) +  #order cities by the value of estimates
+  geom_errorbar(aes(x = reorder(city_state, OR), ymin = CI_lower, ymax = CI_upper, OR)) +  #add error bar
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, size = rel(1))) +
+  labs(x = "City", y = "OR for Comparing Non-white Victims to White Victims with 95% CI")
 ```
 
