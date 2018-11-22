@@ -25,7 +25,6 @@ new_homicides_data = homicides_data %>%
          victim_race = fct_relevel(victim_race, "white"),
          victim_age = as.numeric(victim_age))
 ```
-View(new_homicides_data)
 
 ```{r}
 fit_logistic = new_homicides_data %>%
@@ -39,8 +38,8 @@ fit_logistic %>%
   mutate(OR = exp(estimate),
          CI_lower = exp(estimate - qnorm(0.975) * std.error),
          CI_upper = exp(estimate + qnorm(0.975) * std.error)) %>%
-  select(term, OR, CI_lower, CI_upper, p.value) %>% 
   filter(term == "victim_racenon-white") %>%
+  select(OR, CI_lower, CI_upper, p.value) %>% 
   knitr::kable(digits = 3)
 ```
 
@@ -64,15 +63,17 @@ glm_function = function(city_data){
 
 ```{r}
 multicity_glm = glm_function(new_homicides_data)
+
+multicity_glm
 ```
 
-```{r}
+```{r warning = FALSE}
 multicity_glm %>%
   ggplot() +
   geom_point(aes(x = reorder(city_state, OR), y = OR)) +  #order cities by the value of estimates
   geom_errorbar(aes(x = reorder(city_state, OR), ymin = CI_lower, ymax = CI_upper, OR)) +  #add error bar
   theme(axis.text.x = element_text(angle = 90, hjust = 1, size = rel(1))) +
-  labs(x = "City", y = "OR for Comparing Non-white Victims to White Victims with 95% CI")
+  labs(x = "City", y = "OR for Comparing Non-white Victims to White Victims (95% CI)")
 ```
 
 # Problem 2
