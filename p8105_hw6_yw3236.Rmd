@@ -9,6 +9,8 @@ date: "2018-11-19"
 
 ```{r include = FALSE}
 library(tidyverse)
+library(modelr)
+library(mgcv)
 ```
 
 ```{r}
@@ -73,7 +75,7 @@ multicity_glm %>%
   geom_point(aes(x = reorder(city_state, OR), y = OR)) +  #order cities by the value of estimates
   geom_errorbar(aes(x = reorder(city_state, OR), ymin = CI_lower, ymax = CI_upper, OR)) +  #add error bar
   theme(axis.text.x = element_text(angle = 90, hjust = 1, size = rel(1))) +
-  labs(x = "City", y = "OR for Comparing Non-white Victims to White Victims (95% CI)")
+  labs(x = "City", y = "OR Comparing Non-white Victims to White Victims (95% CI)")
 ```
 
 # Problem 2
@@ -91,6 +93,84 @@ sapply(birthweight_data, function(x)sum(is.na(x)))
 View(birthweight_data)
 
 ```{r}
+# Explorations: pairwise correlations to identify collinearity 
+Hmisc::rcorr(as.matrix(birthweight_data)) %>%
+  broom::tidy() %>%
+  mutate(abs_estimate = abs(estimate)) %>%
+  filter(abs_estimate >= 0.5)
+```
 
+```{r}
+# Fit a regression using all predictors except `pnumlbw` and `pnumsga`
+mult.fit = lm(bwt ~ babysex + bhead + blength + delwt + fincome + frace + gaweeks + malform + menarche + mheight + momage + mrace + parity + ppbmi + ppwt + smoken + wtgain, data = birthweight_data)
+summary(mult.fit)
+
+# Remove wtgain
+step1 = update(mult.fit, . ~ . -wtgain)
+summary(step1)
+
+# Remove malform
+step2 = update(step1, . ~ . -malform)
+summary(step2)
+
+# Remove frace
+step3 = update(step2, . ~ . -frace)
+summary(step3)
+
+# Remove ppbmi
+step4 = update(step3, . ~ . -ppbmi)
+summary(step4)
+
+# Remove momage
+step5 = update(step4, . ~ . -momage)
+summary(step5)
+
+# Remove menarche
+step6 = update(step5, . ~ . -menarche)
+summary(step6)
+
+# Remove fincome
+step7 = update(step6, . ~ . -fincome)
+summary(step7)
+
+# Remove parity
+step8 = update(step7, . ~ . -parity)
+summary(step8)
+
+# Remove colinearity (bhead or blength)
+
+step9 = update(step8, . ~ . -bhead)
+summary(step9)
+
+step9 = update(step8, . ~ . -blength)
+summary(step9)
+# Since deleting either bhead or blength results significant decreasing in both adjusted R-squared and multiple R-squared, I choose to keep both behead and blength. Although behead and blength have linear relationship, it's not the strong linear relationship.
+
+# Remove colinearity (delwt or ppwt)
+
+step10 = update(step8, . ~ . -delwt)
+summary(step10)
+
+step10 = update(step8, . ~ . -ppwt)
+summary(step10)
+# Since deleting ppwt results less decreasing in both adjusted R-squared and multiple R-squared, I choose to move ppwt.
+
+porposed_model = step10
+```
+
+```{r}
+birthweight_data_with_residual = add_residuals(birthweight_data, porposed_model)
+birthweight_data_with_fittedvalue = add_predictions(birthweight_data, porposed_model)
+
+fittedvalue_residual = birthweight_data_with_residual %>%
+  mutate(pred = birthweight_data_with_fittedvalue$pred)
+
+ggplot(fittedvalue_residual, aes(x = pred, y = resid)) +
+  geom_point()
+```
+
+```{r}
+compare_model_1 = lm(bwt ~ blength + gaweeks, data = birthweight_data)
+compare_model_2 = lm(bwt ~ bhead + blength + babysex + bhead * blength + bhead * babysex + blength * babysex + bhead*blength * babysex, data = birthweight_data)
 ```
 
