@@ -179,8 +179,19 @@ rmse(porposed_model, birthweight_data)
 rmse(compare_model_1, birthweight_data)
 rmse(compare_model_2, birthweight_data)
 ```
-
+?crossv_mc
+?rmse
+?map2_dbl
 ```{r}
+cv_df = crossv_mc(birthweight_data, 100) 
 
+cv_df =
+  cv_df %>% 
+  mutate(porposedmodel = purrr::map(train, ~porposed_model),
+         model_1       = purrr::map(train, ~compare_model_1),
+         model_2       = purrr::map(train, ~compare_model_2)) %>% 
+  mutate(rmse_porposed = purrr::map2_dbl(porposedmodel, test, ~rmse(model = .x, data = .y)),
+         rmse_model_1  = purrr::map2_dbl(model_1, test, ~rmse(model = .x, data = .y)),
+         rmse_model_2  = purrr::map2_dbl(model_2, test, ~rmse(model = .x, data = .y)))
 ```
 
