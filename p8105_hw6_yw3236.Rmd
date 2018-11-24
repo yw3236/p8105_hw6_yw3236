@@ -10,7 +10,6 @@ date: "2018-11-19"
 ```{r include = FALSE}
 library(tidyverse)
 library(modelr)
-library(mgcv)
 ```
 
 ```{r}
@@ -80,6 +79,10 @@ multicity_glm %>%
 
 # Problem 2
 
+Load and clean the data for regression analysis:
+* convert numeric to factor where appropriate
+* check for missing data
+
 ```{r}
 birthweight_data = read.csv("./data/birthweight.csv") %>%
   janitor::clean_names() %>%
@@ -88,9 +91,10 @@ birthweight_data = read.csv("./data/birthweight.csv") %>%
          frace = factor(frace, levels = c("1", "2", "3", "4", "8", "9")),
          babysex = factor(babysex, levels = c("1", "2")))
 
-sapply(birthweight_data, function(x)sum(is.na(x)))
+sapply(birthweight_data, function(x)sum(is.na(x)))  #no missing data
 ```
-View(birthweight_data)
+
+Modeling process:
 
 ```{r}
 # Explorations: pairwise correlations to identify collinearity 
@@ -105,6 +109,7 @@ Hmisc::rcorr(as.matrix(birthweight_data)) %>%
 mult.fit = lm(bwt ~ babysex + bhead + blength + delwt + fincome + frace + gaweeks + malform + menarche + mheight + momage + mrace + parity + ppbmi + ppwt + smoken + wtgain, data = birthweight_data)
 summary(mult.fit)
 
+# Backward selection
 # Remove wtgain
 step1 = update(mult.fit, . ~ . -wtgain)
 summary(step1)
@@ -151,12 +156,14 @@ summary(step9)
 step10 = update(step8, . ~ . -delwt)
 summary(step10)
 
-step10 = update(step8, . ~ . -ppwt)
+step_10 = update(step8, . ~ . -ppwt)
 summary(step10)
 # Since deleting ppwt results less decreasing in both adjusted R-squared and multiple R-squared, I choose to move ppwt.
 
-porposed_model = step10
+porposed_model = step_10
 ```
+
+Plot of model residuals against fitted values:
 
 ```{r}
 birthweight_data_with_residual = add_residuals(birthweight_data, porposed_model)
@@ -166,32 +173,37 @@ fittedvalue_residual = birthweight_data_with_residual %>%
   mutate(pred = birthweight_data_with_fittedvalue$pred)
 
 ggplot(fittedvalue_residual, aes(x = pred, y = resid)) +
-  geom_point()
+  geom_point() +
+  labs(x = "Fitted Value", y = "Model Residual")
 ```
+
+Comment: heteroscedasticity exists is a violation of the Ordinary Least Squares assumptions. 
+
+Compare the porposed_model with compare_model_1 and compare_model_2:
 
 ```{r}
 compare_model_1 = lm(bwt ~ blength + gaweeks, data = birthweight_data)
 compare_model_2 = lm(bwt ~ bhead + blength + babysex + bhead * blength + bhead * babysex + blength * babysex + bhead * blength * babysex, data = birthweight_data)
 ```
 
-```{r}
-rmse(porposed_model, birthweight_data)
-rmse(compare_model_1, birthweight_data)
-rmse(compare_model_2, birthweight_data)
-```
-?crossv_mc
-?rmse
-?map2_dbl
-```{r}
-cv_df = crossv_mc(birthweight_data, 100) 
+Make this comparison in terms of the cross-validated prediction error:
 
-cv_df =
-  cv_df %>% 
+```{r}
+cv_df = crossv_mc(birthweight_data, 100)
+
+cv_df = cv_df %>%
   mutate(porposedmodel = purrr::map(train, ~porposed_model),
          model_1       = purrr::map(train, ~compare_model_1),
          model_2       = purrr::map(train, ~compare_model_2)) %>% 
   mutate(rmse_porposed = purrr::map2_dbl(porposedmodel, test, ~rmse(model = .x, data = .y)),
          rmse_model_1  = purrr::map2_dbl(model_1, test, ~rmse(model = .x, data = .y)),
          rmse_model_2  = purrr::map2_dbl(model_2, test, ~rmse(model = .x, data = .y)))
+
+cv_df %>% 
+  select(starts_with("rmse")) %>% 
+  gather(key = model, value = rmse) %>% 
+  mutate(model = str_replace(model, "rmse_", ""),
+         model = fct_inorder(model)) %>% 
+  ggplot(aes(x = model, y = rmse)) + geom_violin()
 ```
 
